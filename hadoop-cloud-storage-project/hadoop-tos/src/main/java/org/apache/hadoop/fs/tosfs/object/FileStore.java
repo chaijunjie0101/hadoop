@@ -117,7 +117,7 @@ public class FileStore implements ObjectStorage {
         "Checksum type %s is not supported by FileStore.", checksumType.name());
     checksumInfo = new ChecksumInfo(algorithm, checksumType);
 
-    Preconditions.checkState(new File(root).mkdirs(), "Failed to create root directory %s.", root);
+    new File(root).mkdirs();
   }
 
   @Override
