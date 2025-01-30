@@ -23,6 +23,7 @@ import java.io.IOException;
 import org.apache.hadoop.fs.StreamCapabilities;
 import org.apache.hadoop.fs.s3a.S3AInputStream;
 
+import static org.apache.hadoop.fs.s3a.impl.streams.StreamIntegration.populateVectoredIOContext;
 import static org.apache.hadoop.util.StringUtils.toLowerCase;
 
 /**
@@ -54,13 +55,19 @@ public class ClassicObjectInputStreamFactory extends AbstractObjectInputStreamFa
     }
   }
 
+  @Override
+  public InputStreamType streamType() {
+    return InputStreamType.Classic;
+  }
+
   /**
    * Get the number of background threads required for this factory.
    * @return the count of background threads.
    */
   @Override
-  public StreamThreadOptions threadRequirements() {
-    return new StreamThreadOptions(0, 0, false, true);
+  public StreamFactoryRequirements factoryRequirements() {
+    return new StreamFactoryRequirements(0, 0, false, false,
+        populateVectoredIOContext(getConfig()));
   }
 
 }

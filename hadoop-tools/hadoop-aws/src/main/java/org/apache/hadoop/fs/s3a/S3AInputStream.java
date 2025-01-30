@@ -146,9 +146,6 @@ public class S3AInputStream extends ObjectInputStream implements CanSetReadahead
 
   private long readahead = Constants.DEFAULT_READAHEAD_RANGE;
 
-  /** Vectored IO context. */
-  private final VectoredIOContext vectoredIOContext;
-
   /**
    * This is the actual position within the object, used by
    * lazy seek to decide whether to seek on the next read or not.
@@ -195,7 +192,6 @@ public class S3AInputStream extends ObjectInputStream implements CanSetReadahead
         getObjectAttributes());
     setReadahead(context.getReadahead());
     this.asyncDrainThreshold = context.getAsyncDrainThreshold();
-    this.vectoredIOContext = this.getContext().getVectoredIOContext();
   }
 
   /**
@@ -764,6 +760,7 @@ public class S3AInputStream extends ObjectInputStream implements CanSetReadahead
     synchronized (this) {
       final StringBuilder sb = new StringBuilder(
           "S3AInputStream{");
+      sb.append(super.toString()).append(" ");
       sb.append(getUri());
       sb.append(" wrappedStream=")
           .append(isObjectStreamOpen() ? "open" : "closed");
@@ -776,7 +773,7 @@ public class S3AInputStream extends ObjectInputStream implements CanSetReadahead
       sb.append(" remainingInCurrentRequest=")
           .append(remainingInCurrentRequest());
       sb.append(" ").append(changeTracker);
-      sb.append(" ").append(vectoredIOContext);
+      sb.append(" ").append(getVectoredIOContext());
       sb.append('\n').append(s);
       sb.append('}');
       return sb.toString();
@@ -824,22 +821,6 @@ public class S3AInputStream extends ObjectInputStream implements CanSetReadahead
         seekQuietly(oldPos);
       }
     }
-  }
-
-  /**
-   * {@inheritDoc}.
-   */
-  @Override
-  public int minSeekForVectorReads() {
-    return vectoredIOContext.getMinSeekForVectorReads();
-  }
-
-  /**
-   * {@inheritDoc}.
-   */
-  @Override
-  public int maxReadSizeForVectorReads() {
-    return vectoredIOContext.getMaxReadSizeForVectorReads();
   }
 
   /**

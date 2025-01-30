@@ -148,7 +148,7 @@ import org.apache.hadoop.fs.s3a.impl.UploadContentProviders;
 import org.apache.hadoop.fs.s3a.impl.CSEUtils;
 import org.apache.hadoop.fs.s3a.impl.streams.ObjectReadParameters;
 import org.apache.hadoop.fs.s3a.impl.streams.ObjectInputStreamCallbacks;
-import org.apache.hadoop.fs.s3a.impl.streams.StreamThreadOptions;
+import org.apache.hadoop.fs.s3a.impl.streams.StreamFactoryRequirements;
 import org.apache.hadoop.fs.s3a.tools.MarkerToolOperations;
 import org.apache.hadoop.fs.s3a.tools.MarkerToolOperationsImpl;
 import org.apache.hadoop.fs.statistics.DurationTracker;
@@ -368,12 +368,6 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
   private S3AInputPolicy inputPolicy;
   /** Vectored IO context. */
   private VectoredIOContext vectoredIOContext;
-
-  /**
-   * Maximum number of active range read operation a single
-   * input stream can have.
-   */
-  private int vectoredActiveRangeReads;
 
   private long readAhead;
   private ChangeDetectionPolicy changeDetectionPolicy;
@@ -755,9 +749,6 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
           longBytesOption(conf, ASYNC_DRAIN_THRESHOLD,
                         DEFAULT_ASYNC_DRAIN_THRESHOLD, 0),
           inputPolicy);
-      vectoredActiveRangeReads = intOption(conf,
-              AWS_S3_VECTOR_ACTIVE_RANGE_READS, DEFAULT_AWS_S3_VECTOR_ACTIVE_RANGE_READS, 1);
-      vectoredIOContext = populateVectoredIOContext(conf);
       scheme = (this.uri != null && this.uri.getScheme() != null) ? this.uri.getScheme() : FS_S3A;
       optimizedCopyFromLocal = conf.getBoolean(OPTIMIZED_COPY_FROM_LOCAL,
           OPTIMIZED_COPY_FROM_LOCAL_DEFAULT);
@@ -771,6 +762,11 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
       // directly through the client manager.
       // this is to aid mocking.
       s3Client = getStore().getOrCreateS3Client();
+
+      final StreamFactoryRequirements factoryRequirements =
+          getStore().factoryRequirements();
+      // get the vector IO context from the factory.
+      vectoredIOContext = factoryRequirements.vectoredIOContext();
 
       // thread pool init requires store to be created
       initThreadPools();
@@ -841,23 +837,6 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
     st.init(getConf());
     st.start();
     return st;
-  }
-
-  /**
-   * Populates the configurations related to vectored IO operation
-   * in the context which has to passed down to input streams.
-   * @param conf configuration object.
-   * @return VectoredIOContext.
-   */
-  private VectoredIOContext populateVectoredIOContext(Configuration conf) {
-    final int minSeekVectored = (int) longBytesOption(conf, AWS_S3_VECTOR_READS_MIN_SEEK_SIZE,
-            DEFAULT_AWS_S3_VECTOR_READS_MIN_SEEK_SIZE, 0);
-    final int maxReadSizeVectored = (int) longBytesOption(conf, AWS_S3_VECTOR_READS_MAX_MERGED_READ_SIZE,
-            DEFAULT_AWS_S3_VECTOR_READS_MAX_MERGED_READ_SIZE, 0);
-    return new VectoredIOContext()
-            .setMinSeekForVectoredReads(minSeekVectored)
-            .setMaxReadSizeForVectoredReads(maxReadSizeVectored)
-            .build();
   }
 
   /**
@@ -950,9 +929,9 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
             TimeUnit.SECONDS,
             Duration.ZERO).getSeconds();
 
-    final StreamThreadOptions threadRequirements =
-        getStore().threadRequirements();
-    int numPrefetchThreads = threadRequirements.sharedThreads();
+    final StreamFactoryRequirements factoryRequirements =
+        getStore().factoryRequirements();
+    int numPrefetchThreads = factoryRequirements.sharedThreads();
 
     int activeTasksForBoundedThreadPool = maxThreads;
     int waitingTasksForBoundedThreadPool = maxThreads + totalTasks + numPrefetchThreads;
@@ -970,7 +949,7 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
     unboundedThreadPool.allowCoreThreadTimeOut(true);
     executorCapacity = intOption(conf,
         EXECUTOR_CAPACITY, DEFAULT_EXECUTOR_CAPACITY, 1);
-    if (threadRequirements.createFuturePool()) {
+    if (factoryRequirements.createFuturePool()) {
       // create a future pool.
       final S3AInputStreamStatistics s3AInputStreamStatistics =
           statisticsContext.newInputStreamStatistics();
@@ -1860,13 +1839,13 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
     LOG.debug("Opening '{}'", readContext);
 
     // what does the stream need
-    final StreamThreadOptions requirements =
-        getStore().threadRequirements();
+    final StreamFactoryRequirements requirements =
+        getStore().factoryRequirements();
 
     // calculate the permit count.
     final int permitCount = requirements.streamThreads() +
         (requirements.vectorSupported()
-            ? vectoredActiveRangeReads
+            ? requirements.vectoredIOContext().getVectoredActiveRangeReads()
             : 0);
     // create an executor which is a subset of the
     // bounded thread pool.

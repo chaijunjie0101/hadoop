@@ -23,12 +23,17 @@ import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.s3a.prefetch.PrefetchingInputStreamFactory;
 
+import static org.apache.hadoop.fs.s3a.Constants.INPUT_STREAM_TYPE;
+import static org.apache.hadoop.fs.s3a.impl.streams.StreamIntegration.loadCustomFactory;
+
 /**
  * Enum of input stream types.
+ * <p>
  * Each enum value contains the factory function actually used to create
  * the factory.
  */
 public enum InputStreamType {
+
   /**
    * The classic input stream.
    */
@@ -46,6 +51,13 @@ public enum InputStreamType {
    */
   Analytics(StreamIntegration.ANALYTICS, 3, c -> {
     throw new IllegalArgumentException("not yet supported");
+  }),
+
+  /**
+   * The a custom input stream.
+   */
+  Custom(StreamIntegration.CUSTOM, 4, c -> {
+    return loadCustomFactory(c);
   });
 
   /**
@@ -71,6 +83,12 @@ public enum InputStreamType {
     return name;
   }
 
+  /**
+   * Constructor.
+   * @param name name, used in configuration binding and capability.
+   * @param id ID
+   * @param factory factory factory function. "metafactory", really.
+   */
   InputStreamType(final String name,
       final int id,
       final Function<Configuration, ObjectInputStreamFactory> factory) {
@@ -81,8 +99,7 @@ public enum InputStreamType {
 
   /**
    * Get the ID of this stream.
-   * Isolated from the enum ID in case it ever needs to be
-   * tuned.
+   * Isolated from the enum ID in case it ever needs to be tuned.
    * @return the numeric ID of the stream.
    */
   public int streamID() {
@@ -90,17 +107,19 @@ public enum InputStreamType {
   }
 
   /**
+   * Get the capability string for this stream type.
+   * @return the name of a string to probe for.
+   */
+  public String capability() {
+    return INPUT_STREAM_TYPE + "." + getName();
+  }
+
+  /**
    * Factory constructor.
-   * @return the factory associated with this stream type.
+   * @return the factory function associated with this stream type.
    */
   public Function<Configuration, ObjectInputStreamFactory> factory() {
     return factory;
   }
-
-  /**
-   * What is the default type?
-   */
-  public static final InputStreamType DEFAULT_STREAM_TYPE = Classic;
-
 
 }

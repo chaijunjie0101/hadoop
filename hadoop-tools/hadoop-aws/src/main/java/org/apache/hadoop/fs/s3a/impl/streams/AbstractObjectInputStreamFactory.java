@@ -31,34 +31,42 @@ import static org.apache.hadoop.util.StringUtils.toLowerCase;
 public abstract class AbstractObjectInputStreamFactory extends AbstractService
     implements ObjectInputStreamFactory {
 
-  protected AbstractObjectInputStreamFactory(final String name) {
-    super(name);
-  }
+  /**
+   * Parameters passed down in
+   * {@link #bind(FactoryBindingParameters)}.
+   */
+  private FactoryBindingParameters bindingParameters;
 
   /**
    * Callbacks.
    */
   private StreamFactoryCallbacks callbacks;
 
+  protected AbstractObjectInputStreamFactory(final String name) {
+    super(name);
+  }
+
   /**
    * Bind to the callbacks.
    * <p>
    * The base class checks service state then stores
    * the callback interface.
-   * @param factoryCallbacks callbacks needed by the factories.
+   * @param factoryBindingParameters parameters for the factory binding
    */
   @Override
-  public void bind(final StreamFactoryCallbacks factoryCallbacks) {
+  public void bind(final FactoryBindingParameters factoryBindingParameters) {
     // must be on be invoked during service initialization
     Preconditions.checkState(isInState(STATE.INITED),
         "Input Stream factory %s is in wrong state: %s",
         this, getServiceState());
-    this.callbacks = factoryCallbacks;
+    bindingParameters = factoryBindingParameters;
+    callbacks = bindingParameters.callbacks();
   }
 
   /**
    * Return base capabilities of all stream factories,
-   * defined what the base ObjectInputStream class does.
+   * defining what the base ObjectInputStream class does.
+   * This also includes the probe for stream type capability.
    * @param capability string to query the stream support for.
    * @return true if implemented
    */
@@ -69,7 +77,8 @@ public abstract class AbstractObjectInputStreamFactory extends AbstractService
     case StreamStatisticNames.STREAM_LEAKS:
       return true;
     default:
-      return false;
+      // dynamic probe for the name of this stream
+      return streamType().capability().equals(capability);
     }
   }
 
@@ -77,7 +86,7 @@ public abstract class AbstractObjectInputStreamFactory extends AbstractService
    * Get the factory callbacks.
    * @return callbacks.
    */
-  public StreamFactoryCallbacks callbacks() {
+  protected StreamFactoryCallbacks callbacks() {
     return callbacks;
   }
 }

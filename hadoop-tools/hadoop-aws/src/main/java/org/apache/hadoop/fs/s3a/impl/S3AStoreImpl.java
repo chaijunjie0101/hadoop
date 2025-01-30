@@ -73,10 +73,12 @@ import org.apache.hadoop.fs.s3a.Statistic;
 import org.apache.hadoop.fs.s3a.UploadInfo;
 import org.apache.hadoop.fs.s3a.api.RequestFactory;
 import org.apache.hadoop.fs.s3a.audit.AuditSpanS3A;
+import org.apache.hadoop.fs.s3a.impl.streams.FactoryBindingParameters;
+import org.apache.hadoop.fs.s3a.impl.streams.InputStreamType;
 import org.apache.hadoop.fs.s3a.impl.streams.ObjectInputStream;
 import org.apache.hadoop.fs.s3a.impl.streams.ObjectInputStreamFactory;
 import org.apache.hadoop.fs.s3a.impl.streams.ObjectReadParameters;
-import org.apache.hadoop.fs.s3a.impl.streams.StreamThreadOptions;
+import org.apache.hadoop.fs.s3a.impl.streams.StreamFactoryRequirements;
 import org.apache.hadoop.fs.s3a.statistics.S3AStatisticsContext;
 import org.apache.hadoop.fs.statistics.DurationTracker;
 import org.apache.hadoop.fs.statistics.DurationTrackerFactory;
@@ -111,7 +113,7 @@ import static org.apache.hadoop.fs.s3a.Statistic.STORE_IO_THROTTLED;
 import static org.apache.hadoop.fs.s3a.Statistic.STORE_IO_THROTTLE_RATE;
 import static org.apache.hadoop.fs.s3a.impl.ErrorTranslation.isObjectNotFound;
 import static org.apache.hadoop.fs.s3a.impl.InternalConstants.DELETE_CONSIDERED_IDEMPOTENT;
-import static org.apache.hadoop.fs.s3a.impl.streams.StreamIntegration.createStreamFactory;
+import static org.apache.hadoop.fs.s3a.impl.streams.StreamIntegration.factoryFromConfig;
 import static org.apache.hadoop.fs.statistics.StoreStatisticNames.ACTION_HTTP_GET_REQUEST;
 import static org.apache.hadoop.fs.statistics.impl.IOStatisticsBinding.trackDurationOfOperation;
 import static org.apache.hadoop.fs.statistics.impl.IOStatisticsBinding.trackDurationOfSupplier;
@@ -233,7 +235,7 @@ public class S3AStoreImpl
 
     // create and register the stream factory, which will
     // then follow the service lifecycle
-    objectInputStreamFactory = createStreamFactory(conf);
+    objectInputStreamFactory = factoryFromConfig(conf);
     addService(objectInputStreamFactory);
 
     // init all child services, including the stream factory
@@ -268,7 +270,6 @@ public class S3AStoreImpl
       return hasCapability(capability);
     }
   }
-
 
   /**
    * Return the capabilities of input streams created
@@ -955,7 +956,7 @@ public class S3AStoreImpl
         "Client Manager is in wrong state: %s", clientManager.getServiceState());
 
     // finish initialization and pass down callbacks to self
-    objectInputStreamFactory.bind(new FactoryCallbacks());
+    objectInputStreamFactory.bind(new FactoryBindingParameters(new FactoryCallbacks()));
   }
 
   @Override /* ObjectInputStreamFactory */
@@ -966,19 +967,23 @@ public class S3AStoreImpl
   }
 
   @Override /* ObjectInputStreamFactory */
-  public StreamThreadOptions threadRequirements() {
-    return objectInputStreamFactory.threadRequirements();
+  public StreamFactoryRequirements factoryRequirements() {
+    return objectInputStreamFactory.factoryRequirements();
   }
 
   /**
    * This operation is not implemented, as
    * is this class which invokes it on the actual factory.
-   * @param callbacks factory callbacks.
-   * @throws UnsupportedOperationException always
+   * @param factoryBindingParameters@throws UnsupportedOperationException always
    */
   @Override /* ObjectInputStreamFactory */
-  public void bind(final StreamFactoryCallbacks callbacks) {
+  public void bind(final FactoryBindingParameters factoryBindingParameters) {
     throw new UnsupportedOperationException("Not supported");
+  }
+
+  @Override /* ObjectInputStreamFactory */
+  public InputStreamType streamType() {
+    return objectInputStreamFactory.streamType();
   }
 
   /**

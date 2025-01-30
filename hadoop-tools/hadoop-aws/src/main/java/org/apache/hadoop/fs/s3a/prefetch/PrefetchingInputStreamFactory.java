@@ -21,10 +21,12 @@ package org.apache.hadoop.fs.s3a.prefetch;
 import java.io.IOException;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.s3a.VectoredIOContext;
 import org.apache.hadoop.fs.s3a.impl.streams.AbstractObjectInputStreamFactory;
+import org.apache.hadoop.fs.s3a.impl.streams.InputStreamType;
 import org.apache.hadoop.fs.s3a.impl.streams.ObjectInputStream;
 import org.apache.hadoop.fs.s3a.impl.streams.ObjectReadParameters;
-import org.apache.hadoop.fs.s3a.impl.streams.StreamThreadOptions;
+import org.apache.hadoop.fs.s3a.impl.streams.StreamFactoryRequirements;
 
 import static org.apache.hadoop.fs.s3a.Constants.PREFETCH_BLOCK_COUNT_KEY;
 import static org.apache.hadoop.fs.s3a.Constants.PREFETCH_BLOCK_DEFAULT_COUNT;
@@ -32,6 +34,7 @@ import static org.apache.hadoop.fs.s3a.Constants.PREFETCH_BLOCK_DEFAULT_SIZE;
 import static org.apache.hadoop.fs.s3a.Constants.PREFETCH_BLOCK_SIZE_KEY;
 import static org.apache.hadoop.fs.s3a.S3AUtils.intOption;
 import static org.apache.hadoop.fs.s3a.S3AUtils.longBytesOption;
+import static org.apache.hadoop.fs.s3a.impl.streams.StreamIntegration.populateVectoredIOContext;
 import static org.apache.hadoop.util.Preconditions.checkState;
 
 /**
@@ -54,6 +57,11 @@ public class PrefetchingInputStreamFactory extends AbstractObjectInputStreamFact
 
   public PrefetchingInputStreamFactory() {
     super("PrefetchingInputStreamFactory");
+  }
+
+  @Override
+  public InputStreamType streamType() {
+    return InputStreamType.Prefetch;
   }
 
   @Override
@@ -80,12 +88,21 @@ public class PrefetchingInputStreamFactory extends AbstractObjectInputStreamFact
   }
 
   /**
-   * The thread count is calculated from the configuration.
+   * Calculate Return StreamFactoryRequirements
    * @return a positive thread count.
    */
   @Override
-  public StreamThreadOptions threadRequirements() {
-    return new StreamThreadOptions(prefetchBlockCount, 0, true, false);
+  public StreamFactoryRequirements factoryRequirements() {
+    // fill in the vector context
+    final VectoredIOContext vectorContext = populateVectoredIOContext(getConfig());
+    // and then disable range merging.
+    // this ensures that no reads are made for data which is then discarded...
+    // so the prefetch and block read code doesn't ever do wasteful fetches.
+    vectorContext.setMinSeekForVectoredReads(0);
+
+    return new StreamFactoryRequirements(prefetchBlockCount,
+        0, true, false,
+        vectorContext);
   }
 
 }

@@ -21,7 +21,6 @@ package org.apache.hadoop.fs.s3a;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.fs.Options;
-import org.apache.hadoop.fs.s3a.impl.streams.InputStreamType;
 import org.apache.hadoop.fs.s3a.impl.streams.StreamIntegration;
 import org.apache.hadoop.security.ssl.DelegatingSSLSocketFactory;
 
@@ -1594,30 +1593,48 @@ public final class Constants {
       StreamIntegration.CLASSIC;
 
   /**
-   * The prefetching input stream: "prefetch".
+   * The prefetching input stream: {@value}.
    */
   public static final String INPUT_STREAM_TYPE_PREFETCH = StreamIntegration.PREFETCH;
 
   /**
-   * The analytics input stream: "analytics".
+   * The analytics input stream: {@value}.
    */
   public static final String INPUT_STREAM_TYPE_ANALYTICS =
       StreamIntegration.ANALYTICS;
 
   /**
-   * The default input stream.
-   * Currently {@link #INPUT_STREAM_TYPE_CLASSIC}
+   * Request the default input stream,
+   * whatever it is for this release: {@value}.
    */
-  public static final String INPUT_STREAM_TYPE_DEFAULT = InputStreamType.DEFAULT_STREAM_TYPE.getName();
+  public static final String INPUT_STREAM_TYPE_DEFAULT = StreamIntegration.DEFAULT;
+
+  /**
+   * The custom input stream type: {@value}".
+   * If set, the classname is loaded from
+   * {@link #INPUT_STREAM_CUSTOM_FACTORY}.
+   * <p>
+   * This option is primarily for testing as it can
+   * be used to generated failures.
+   */
+  public static final String INPUT_STREAM_TYPE_CUSTOM =
+      StreamIntegration.CUSTOM;
+
+  /**
+   * Classname of the factory to instantiate for custom streams: {@value}.
+   */
+  public static final String INPUT_STREAM_CUSTOM_FACTORY = "fs.s3a.input.stream.custom.factory";
 
   /**
    * Controls whether the prefetching input stream is enabled.
    */
+  @Deprecated
   public static final String PREFETCH_ENABLED_KEY = "fs.s3a.prefetch.enabled";
 
   /**
    * Default option as to whether the prefetching input stream is enabled.
    */
+  @Deprecated
   public static final boolean  PREFETCH_ENABLED_DEFAULT = false;
 
   // If the default values are used, each file opened for reading will consume

@@ -18,10 +18,13 @@
 
 package org.apache.hadoop.fs.s3a.impl.streams;
 
+import org.apache.hadoop.fs.s3a.VectoredIOContext;
+
 /**
- * Options for threading on this input stream.
+ * Options for requirements for streams from this factory,
+ * including threading and vector IO.
  */
-public class StreamThreadOptions {
+public class StreamFactoryRequirements {
 
   /** Number of shared threads to included in the bounded pool. */
   private final int sharedThreads;
@@ -43,20 +46,28 @@ public class StreamThreadOptions {
   private final boolean vectorSupported;
 
   /**
+   * VectoredIO behaviour.
+   * This is examined.
+   */
+  private final VectoredIOContext vectoredIOContext;
+  /**
    * Create the thread options.
    * @param sharedThreads Number of shared threads to included in the bounded pool.
    * @param streamThreads How many threads per stream, ignoring vector IO requirements.
    * @param createFuturePool Flag to enable creation of a future pool around the
    *                         bounded thread pool.
+   * @param vectoredIOContext vector IO settings.
    */
-  public StreamThreadOptions(final int sharedThreads,
+  public StreamFactoryRequirements(final int sharedThreads,
       final int streamThreads,
       final boolean createFuturePool,
-      final boolean vectorSupported) {
+      final boolean vectorSupported,
+      final VectoredIOContext vectoredIOContext) {
     this.sharedThreads = sharedThreads;
     this.streamThreads = streamThreads;
     this.createFuturePool = createFuturePool;
     this.vectorSupported = vectorSupported;
+    this.vectoredIOContext = vectoredIOContext;
   }
 
   public int sharedThreads() {
@@ -73,5 +84,9 @@ public class StreamThreadOptions {
 
   public boolean vectorSupported() {
     return vectorSupported;
+  }
+
+  public VectoredIOContext vectoredIOContext() {
+    return vectoredIOContext;
   }
 }

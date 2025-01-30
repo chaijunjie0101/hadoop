@@ -41,6 +41,12 @@ public class VectoredIOContext {
   private int maxReadSizeForVectorReads;
 
   /**
+   * Maximum number of active range read operation a single
+   * input stream can have.
+   */
+  private int vectoredActiveRangeReads;
+
+  /**
    * Default no arg constructor.
    */
   public VectoredIOContext() {
@@ -68,11 +74,22 @@ public class VectoredIOContext {
     return maxReadSizeForVectorReads;
   }
 
+  public int getVectoredActiveRangeReads() {
+    return vectoredActiveRangeReads;
+  }
+
+  public VectoredIOContext setVectoredActiveRangeReads(
+      final int vectoredActiveRangeReads) {
+    this.vectoredActiveRangeReads = vectoredActiveRangeReads;
+    return this;
+  }
+
   @Override
   public String toString() {
     return "VectoredIOContext{" +
             "minSeekForVectorReads=" + minSeekForVectorReads +
             ", maxReadSizeForVectorReads=" + maxReadSizeForVectorReads +
+            ", vectoredActiveRangeReads=" + vectoredActiveRangeReads +
             '}';
   }
 }

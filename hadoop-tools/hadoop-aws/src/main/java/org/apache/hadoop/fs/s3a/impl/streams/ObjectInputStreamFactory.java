@@ -44,9 +44,9 @@ public interface ObjectInputStreamFactory
    * Set extra initialization parameters.
    * This MUST ONLY be invoked between {@code init()}
    * and {@code start()}.
-   * @param callbacks extra initialization parameters
+   * @param factoryBindingParameters parameters for the factory binding
    */
-  void bind(StreamFactoryCallbacks callbacks);
+  void bind(final FactoryBindingParameters factoryBindingParameters);
 
   /**
    * Create a new input stream.
@@ -60,10 +60,17 @@ public interface ObjectInputStreamFactory
       throws IOException;
 
   /**
-   * Get the number of background threads required for this factory.
+   * Get requirements from the factory which then tune behavior
+   * elsewhere in the system.
    * @return the count of background threads.
    */
-  StreamThreadOptions threadRequirements();
+  StreamFactoryRequirements factoryRequirements();
+
+  /**
+   * Get the input stream type.
+   * @return the specific stream type this factory produces.
+   */
+  InputStreamType streamType();
 
   /**
    * Callbacks for stream factories.

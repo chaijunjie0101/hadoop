@@ -33,6 +33,7 @@ import org.apache.hadoop.fs.impl.LeakReporter;
 import org.apache.hadoop.fs.s3a.S3AInputPolicy;
 import org.apache.hadoop.fs.s3a.S3AReadOpContext;
 import org.apache.hadoop.fs.s3a.S3ObjectAttributes;
+import org.apache.hadoop.fs.s3a.VectoredIOContext;
 import org.apache.hadoop.fs.s3a.statistics.S3AInputStreamStatistics;
 import org.apache.hadoop.fs.statistics.IOStatistics;
 import org.apache.hadoop.fs.statistics.IOStatisticsAggregator;
@@ -41,6 +42,7 @@ import org.apache.hadoop.fs.statistics.StreamStatisticNames;
 
 import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.isNotEmpty;
+import static org.apache.hadoop.fs.s3a.Constants.INPUT_STREAM_TYPE;
 import static org.apache.hadoop.util.Preconditions.checkArgument;
 import static org.apache.hadoop.util.StringUtils.toLowerCase;
 
@@ -120,11 +122,19 @@ public abstract class ObjectInputStream extends FSInputStream
    */
   private final LeakReporter leakReporter;
 
+  /**
+   * Stream type.
+   */
   private final InputStreamType streamType;
+
   /**
    * Requested input policy.
    */
   private S3AInputPolicy inputPolicy;
+
+
+  /** Vectored IO context. */
+  private final VectoredIOContext vectoredIOContext;
 
   /**
    * Constructor.
@@ -135,8 +145,8 @@ public abstract class ObjectInputStream extends FSInputStream
       final InputStreamType streamType,
       final ObjectReadParameters parameters) {
 
-    objectAttributes = parameters.getObjectAttributes();
-    this.streamType = streamType;
+    this.streamType = requireNonNull(streamType);
+    this.objectAttributes = parameters.getObjectAttributes();
     checkArgument(isNotEmpty(objectAttributes.getBucket()),
         "No Bucket");
     checkArgument(isNotEmpty(objectAttributes.getKey()), "No Key");
@@ -161,6 +171,7 @@ public abstract class ObjectInputStream extends FSInputStream
         "Stream not closed while reading " + uri,
         this::isStreamOpen,
         this::abortInFinalizer);
+    this.vectoredIOContext = getContext().getVectoredIOContext();
   }
 
   /**
@@ -282,6 +293,10 @@ public abstract class ObjectInputStream extends FSInputStream
     case StreamStatisticNames.STREAM_LEAKS:
       return true;
     default:
+      // dynamic probe for the name of this stream
+      if (streamType.capability().equals(capability)) {
+        return true;
+      }
       return false;
     }
   }
@@ -325,6 +340,39 @@ public abstract class ObjectInputStream extends FSInputStream
   protected final S3ObjectAttributes getObjectAttributes() {
     return objectAttributes;
   }
+
+  protected VectoredIOContext getVectoredIOContext() {
+    return vectoredIOContext;
+  }
+
+  /**
+   * {@inheritDoc}.
+   */
+  @Override
+  public int minSeekForVectorReads() {
+    return vectoredIOContext.getMinSeekForVectorReads();
+  }
+
+  /**
+   * {@inheritDoc}.
+   */
+  @Override
+  public int maxReadSizeForVectorReads() {
+    return vectoredIOContext.getMaxReadSizeForVectorReads();
+  }
+
+  public InputStreamType streamType() {
+    return streamType;
+  }
+
+  @Override
+  public String toString() {
+    return "ObjectInputStream{" +
+        "streamType=" + streamType +
+        ", uri='" + uri + '\'' +
+        ", contentLength=" + contentLength +
+        ", inputPolicy=" + inputPolicy +
+        ", vectoredIOContext=" + vectoredIOContext +
+        "} " + super.toString();
+  }
 }
-
-
