@@ -101,8 +101,9 @@ public class PrefetchingInputStreamFactory extends AbstractObjectInputStreamFact
         .setMinSeekForVectoredReads(0);
 
     return new StreamFactoryRequirements(prefetchBlockCount,
-        0, true, false,
-        vectorContext);
+        0,
+        vectorContext,
+        StreamFactoryRequirements.Requirements.RequiresFuturePool);
   }
 
 }

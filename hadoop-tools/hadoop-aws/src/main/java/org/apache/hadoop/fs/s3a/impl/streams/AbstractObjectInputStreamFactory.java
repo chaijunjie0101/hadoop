@@ -42,6 +42,10 @@ public abstract class AbstractObjectInputStreamFactory extends AbstractService
    */
   private StreamFactoryCallbacks callbacks;
 
+  /**
+   * Constructor.
+   * @param name service name.
+   */
   protected AbstractObjectInputStreamFactory(final String name) {
     super(name);
   }

@@ -66,7 +66,7 @@ public class ClassicObjectInputStreamFactory extends AbstractObjectInputStreamFa
    */
   @Override
   public StreamFactoryRequirements factoryRequirements() {
-    return new StreamFactoryRequirements(0, 0, false, false,
+    return new StreamFactoryRequirements(0, 0,
         populateVectoredIOContext(getConfig()));
   }
 

@@ -946,7 +946,7 @@ public class S3AStoreImpl
    * All stream factory initialization required after {@code Service.init()},
    * after all other services have themselves been initialized.
    */
-  private void finishStreamFactoryInit() {
+  private void finishStreamFactoryInit() throws IOException {
     // must be on be invoked during service initialization
     Preconditions.checkState(isInState(STATE.INITED),
         "Store is in wrong state: %s", getServiceState());

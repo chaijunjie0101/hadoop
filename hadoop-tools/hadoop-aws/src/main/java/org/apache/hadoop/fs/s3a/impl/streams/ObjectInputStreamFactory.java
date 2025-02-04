@@ -45,8 +45,9 @@ public interface ObjectInputStreamFactory
    * This MUST ONLY be invoked between {@code init()}
    * and {@code start()}.
    * @param factoryBindingParameters parameters for the factory binding
+   * @throws IOException if IO problems.
    */
-  void bind(FactoryBindingParameters factoryBindingParameters);
+  void bind(FactoryBindingParameters factoryBindingParameters) throws IOException;
 
   /**
    * Create a new input stream.

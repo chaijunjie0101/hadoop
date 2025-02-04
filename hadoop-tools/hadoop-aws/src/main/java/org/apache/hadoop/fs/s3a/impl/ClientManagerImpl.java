@@ -118,7 +118,7 @@ public class ClientManagerImpl
     this.clientCreationParameters = requireNonNull(clientCreationParameters);
     this.durationTrackerFactory = requireNonNull(durationTrackerFactory);
     this.s3Client = new LazyAutoCloseableReference<>(createS3Client());
-    this.s3AsyncClient = new LazyAutoCloseableReference<>(createAyncClient());
+    this.s3AsyncClient = new LazyAutoCloseableReference<>(createAsyncClient());
     this.unencryptedS3Client = new LazyAutoCloseableReference<>(createUnencryptedS3Client());
     this.transferManager = new LazyAutoCloseableReference<>(createTransferManager());
 
@@ -141,7 +141,7 @@ public class ClientManagerImpl
    * Create the function to create the S3 Async client.
    * @return a callable which will create the client.
    */
-  private CallableRaisingIOE<S3AsyncClient> createAyncClient() {
+  private CallableRaisingIOE<S3AsyncClient> createAsyncClient() {
     return trackDurationOfOperation(
         durationTrackerFactory,
         STORE_CLIENT_CREATION.getSymbol(),

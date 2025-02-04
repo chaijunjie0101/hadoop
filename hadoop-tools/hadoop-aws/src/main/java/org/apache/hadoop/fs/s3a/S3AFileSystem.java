@@ -230,6 +230,7 @@ import static org.apache.hadoop.fs.s3a.Listing.toLocatedFileStatusIterator;
 import static org.apache.hadoop.fs.s3a.S3AUtils.*;
 import static org.apache.hadoop.fs.s3a.Statistic.*;
 import static org.apache.hadoop.fs.s3a.audit.S3AAuditConstants.INITIALIZE_SPAN;
+import static org.apache.hadoop.fs.s3a.audit.S3AAuditConstants.REJECT_OUT_OF_SPAN_OPERATIONS;
 import static org.apache.hadoop.fs.s3a.auth.CredentialProviderListFactory.createAWSCredentialProviderList;
 import static org.apache.hadoop.fs.s3a.auth.RolePolicies.STATEMENT_ALLOW_KMS_RW;
 import static org.apache.hadoop.fs.s3a.auth.RolePolicies.allowS3Operations;
@@ -522,7 +523,24 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
     addDeprecatedKeys();
   }
 
-  /** Called after a new FileSystem instance is constructed.
+  /**
+   * Initialize the filesystem.
+   * <p>
+   * This is called after a new FileSystem instance is constructed -but
+   * within the filesystem cache creation process.
+   * A slow start here while multiple threads are calling
+   * {@link FileSystem#get(Path, Configuration)} will result in multiple
+   * instances of the filesystem being created -and all but one deleted.
+   * <i>Keep this as fast as possible, and avoid network IO</i>.
+   * <p>
+   * This performs the majority of the filesystem setup, and as things
+   * are intermixed the ordering of operations is very sensitive.
+   * Be very careful when moving things.
+   * <p>
+   * To help identify where filesystem instances are created,
+   * the full stack is logged at TRACE.
+   * <p>
+   * Also, ignore checkstyle complaints about method length.
    * @param name a uri whose authority section names the host, port, etc.
    *   for this FileSystem
    * @param originalConf the configuration to use for the FS. The
@@ -663,9 +681,6 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
       signerManager = new SignerManager(bucket, this, conf, owner);
       signerManager.initCustomSigners();
 
-      // start auditing
-      initializeAuditService();
-
       // create the requestFactory.
       // requires the audit manager to be initialized.
       requestFactory = createRequestFactory();
@@ -763,12 +778,20 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
       // this is to aid mocking.
       s3Client = getStore().getOrCreateS3Client();
 
+      // get the input stream factory requirements.
       final StreamFactoryRequirements factoryRequirements =
           getStore().factoryRequirements();
       // get the vector IO context from the factory.
       vectoredIOContext = factoryRequirements.vectoredIOContext();
 
-      // thread pool init requires store to be created
+      // start auditing.
+      // If the input stream can issue get requests outside spans,
+      // the auditor is forced to disable rejection of unaudited requests.
+      initializeAuditService(factoryRequirements.requires(
+          StreamFactoryRequirements.Requirements.ExpectUnauditedGetRequests));
+
+      // thread pool init requires store to be created and
+      // the stream factory requirements to include its own requirements.
       initThreadPools();
 
       // The filesystem is now ready to perform operations against
@@ -949,7 +972,7 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
     unboundedThreadPool.allowCoreThreadTimeOut(true);
     executorCapacity = intOption(conf,
         EXECUTOR_CAPACITY, DEFAULT_EXECUTOR_CAPACITY, 1);
-    if (factoryRequirements.createFuturePool()) {
+    if (factoryRequirements.requiresFuturePool()) {
       // create a future pool.
       final S3AInputStreamStatistics s3AInputStreamStatistics =
           statisticsContext.newInputStreamStatistics();
@@ -1154,11 +1177,17 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
    * Initialize and launch the audit manager and service.
    * As this takes the FS IOStatistics store, it must be invoked
    * after instrumentation is initialized.
+   * @param allowUnauditedRequests are unaudited requests required.
    * @throws IOException failure to instantiate/initialize.
    */
-  protected void initializeAuditService() throws IOException {
+  protected void initializeAuditService(boolean allowUnauditedRequests) throws IOException {
+    final Configuration conf = new Configuration(getConf());
+    if (allowUnauditedRequests) {
+      // unaudited requests must be allowed
+      conf.setBoolean(REJECT_OUT_OF_SPAN_OPERATIONS, false);
+    }
     auditManager = AuditIntegration.createAndStartAuditManager(
-        getConf(),
+        conf,
         instrumentation.createMetricsUpdatingStore());
   }
 
@@ -1843,10 +1872,8 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
         getStore().factoryRequirements();
 
     // calculate the permit count.
-    final int permitCount = requirements.streamThreads() +
-        (requirements.vectorSupported()
-            ? requirements.vectoredIOContext().getVectoredActiveRangeReads()
-            : 0);
+    final int permitCount = requirements.streamThreads()
+        + requirements.vectoredIOContext().getVectoredActiveRangeReads();
     // create an executor which is a subset of the
     // bounded thread pool.
     final SemaphoredDelegatingExecutor pool = new SemaphoredDelegatingExecutor(

@@ -18,76 +18,110 @@
 
 package org.apache.hadoop.fs.s3a.impl.streams;
 
+import java.util.Arrays;
+import java.util.EnumSet;
+
 import org.apache.hadoop.fs.s3a.VectoredIOContext;
 
 /**
- * Options for requirements for streams from this factory,
+ * Requirements for requirements for streams from this factory,
  * including threading and vector IO.
  */
 public class StreamFactoryRequirements {
 
-  /** Number of shared threads to included in the bounded pool. */
+  /**
+   * Number of shared threads to included in the bounded pool.
+   */
   private final int sharedThreads;
 
   /**
-   * How many threads per stream, ignoring vector IO requirements.
+   * How many threads per stream, ignoring vector IO requirements?
    */
   private final int streamThreads;
 
   /**
-   * Flag to enable creation of a future pool around the bounded thread pool.
-   */
-  private final boolean createFuturePool;
-
-  /**
-   * Is vector IO supported (so its thread requirements
-   * included too)?
-   */
-  private final boolean vectorSupported;
-
-  /**
    * VectoredIO behaviour.
-   * This is examined.
    */
   private final VectoredIOContext vectoredIOContext;
+
+  /**
+   * Set of requirement flags.
+   */
+  private final EnumSet<Requirements> requirementFlags;
+
   /**
    * Create the thread options.
    * @param sharedThreads Number of shared threads to included in the bounded pool.
    * @param streamThreads How many threads per stream, ignoring vector IO requirements.
-   * @param createFuturePool Flag to enable creation of a future pool around the
-   *                         bounded thread pool.
-   * @param vectorSupported is vector IO supported through a custom implementation.b
    * @param vectoredIOContext vector IO settings.
+   * @param requirements requirement flags of the factory and stream.
    */
-  public StreamFactoryRequirements(final int sharedThreads,
+  public StreamFactoryRequirements(
+      final int sharedThreads,
       final int streamThreads,
-      final boolean createFuturePool,
-      final boolean vectorSupported,
-      final VectoredIOContext vectoredIOContext) {
+      final VectoredIOContext vectoredIOContext,
+      final Requirements...requirements) {
     this.sharedThreads = sharedThreads;
     this.streamThreads = streamThreads;
-    this.createFuturePool = createFuturePool;
-    this.vectorSupported = vectorSupported;
-    this.vectoredIOContext = vectoredIOContext;
+    this.vectoredIOContext = vectoredIOContext.build();
+    this.requirementFlags = EnumSet.copyOf((Arrays.asList(requirements)));
   }
 
+  /**
+   * Number of shared threads to included in the bounded pool.
+   */
   public int sharedThreads() {
     return sharedThreads;
   }
 
+  /**
+   * How many threads per stream, ignoring vector IO requirements?
+   */
   public int streamThreads() {
     return streamThreads;
   }
 
-  public boolean createFuturePool() {
-    return createFuturePool;
+  /**
+   * Should the future pool be created?
+   * @return true if the future pool is required.
+   */
+  public boolean requiresFuturePool() {
+    return requires(Requirements.RequiresFuturePool);
   }
 
-  public boolean vectorSupported() {
-    return vectorSupported;
-  }
-
+  /**
+   * The VectorIO requirements of streams.
+   * @return vector IO context.
+   */
   public VectoredIOContext vectoredIOContext() {
     return vectoredIOContext;
+  }
+
+  /**
+   * Does this factory have this requirement?
+   * @param r requirement to probe for.
+   * @return true if this is a requirement.
+   */
+  public boolean requires(Requirements r) {
+    return requirementFlags.contains(r);
+  }
+
+  /**
+   * An enum of options.
+   */
+  public enum Requirements {
+
+    /**
+     * Requires a future pool bound to the thread pool.
+     */
+    RequiresFuturePool,
+
+    /**
+     * Expect Unaudited GETs.
+     * Disables auditor warning/errors about GET requests being
+     * issued outside an audit span.
+     */
+    ExpectUnauditedGetRequests
+
   }
 }
