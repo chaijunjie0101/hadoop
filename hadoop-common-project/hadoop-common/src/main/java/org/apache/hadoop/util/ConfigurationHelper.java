@@ -137,26 +137,26 @@ public final class ConfigurationHelper {
    * @param name property name
    * @param enumClass classname to resolve
    * @param fallback fallback supplier
-   * @return an enum value
    * @param <E> enumeration type.
+   * @return an enum value
    * @throws IllegalArgumentException If mapping is illegal for the type provided
    */
-    public static <E extends Enum<E>> E resolveEnum(
-        Configuration conf,
-        String name,
-        Class<E> enumClass,
-        Function<String, E> fallback) {
+  public static <E extends Enum<E>> E resolveEnum(
+      Configuration conf,
+      String name,
+      Class<E> enumClass,
+      Function<String, E> fallback) {
 
-      final String val = conf.getTrimmed(name, "");
+    final String val = conf.getTrimmed(name, "");
 
-      // build a map of lower case string to enum values.
-      final Map<String, E> mapping = mapEnumNamesToValues("", enumClass);
-      final E mapped = mapping.get(val.toLowerCase(Locale.ROOT));
-      if (mapped != null) {
-        return mapped;
-      } else {
-        // fallback handles it
-        return fallback.apply(val);
-      }
+    // build a map of lower case string to enum values.
+    final Map<String, E> mapping = mapEnumNamesToValues("", enumClass);
+    final E mapped = mapping.get(val.toLowerCase(Locale.ROOT));
+    if (mapped != null) {
+      return mapped;
+    } else {
+      // fallback handles it
+      return fallback.apply(val);
     }
+  }
 }

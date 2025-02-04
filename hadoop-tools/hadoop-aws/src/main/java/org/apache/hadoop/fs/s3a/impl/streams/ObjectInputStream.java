@@ -42,7 +42,6 @@ import org.apache.hadoop.fs.statistics.StreamStatisticNames;
 
 import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.isNotEmpty;
-import static org.apache.hadoop.fs.s3a.Constants.INPUT_STREAM_TYPE;
 import static org.apache.hadoop.util.Preconditions.checkArgument;
 import static org.apache.hadoop.util.StringUtils.toLowerCase;
 

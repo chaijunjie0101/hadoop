@@ -974,7 +974,8 @@ public class S3AStoreImpl
   /**
    * This operation is not implemented, as
    * is this class which invokes it on the actual factory.
-   * @param factoryBindingParameters@throws UnsupportedOperationException always
+   * @param factoryBindingParameters ignored
+   * @throws UnsupportedOperationException always
    */
   @Override /* ObjectInputStreamFactory */
   public void bind(final FactoryBindingParameters factoryBindingParameters) {

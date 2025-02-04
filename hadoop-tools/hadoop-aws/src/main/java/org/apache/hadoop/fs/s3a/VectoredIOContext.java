@@ -79,8 +79,8 @@ public class VectoredIOContext {
   }
 
   public VectoredIOContext setVectoredActiveRangeReads(
-      final int vectoredActiveRangeReads) {
-    this.vectoredActiveRangeReads = vectoredActiveRangeReads;
+      final int activeReads) {
+    this.vectoredActiveRangeReads = activeReads;
     return this;
   }
 

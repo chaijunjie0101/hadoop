@@ -46,7 +46,7 @@ public interface ObjectInputStreamFactory
    * and {@code start()}.
    * @param factoryBindingParameters parameters for the factory binding
    */
-  void bind(final FactoryBindingParameters factoryBindingParameters);
+  void bind(FactoryBindingParameters factoryBindingParameters);
 
   /**
    * Create a new input stream.

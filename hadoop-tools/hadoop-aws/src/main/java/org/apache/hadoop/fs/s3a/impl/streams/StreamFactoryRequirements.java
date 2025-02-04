@@ -56,6 +56,7 @@ public class StreamFactoryRequirements {
    * @param streamThreads How many threads per stream, ignoring vector IO requirements.
    * @param createFuturePool Flag to enable creation of a future pool around the
    *                         bounded thread pool.
+   * @param vectorSupported is vector IO supported through a custom implementation.b
    * @param vectoredIOContext vector IO settings.
    */
   public StreamFactoryRequirements(final int sharedThreads,

@@ -88,17 +88,17 @@ public class PrefetchingInputStreamFactory extends AbstractObjectInputStreamFact
   }
 
   /**
-   * Calculate Return StreamFactoryRequirements
-   * @return a positive thread count.
+   * Calculate Return StreamFactoryRequirements.
+   * @return thread count a vector minimum seek of 0.
    */
   @Override
   public StreamFactoryRequirements factoryRequirements() {
     // fill in the vector context
-    final VectoredIOContext vectorContext = populateVectoredIOContext(getConfig());
     // and then disable range merging.
     // this ensures that no reads are made for data which is then discarded...
     // so the prefetch and block read code doesn't ever do wasteful fetches.
-    vectorContext.setMinSeekForVectoredReads(0);
+    final VectoredIOContext vectorContext = populateVectoredIOContext(getConfig())
+        .setMinSeekForVectoredReads(0);
 
     return new StreamFactoryRequirements(prefetchBlockCount,
         0, true, false,

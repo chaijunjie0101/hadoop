@@ -20,7 +20,7 @@ This is always evolving, based on experience, and benchmarking,
 and in collaboration with other projects.
 
 ## Key concepts
- 
+
 * Data is read from S3 through an instance of an `ObjectInputStream`.
 * There are different implementations of this in the codebase:
   `classic`, `prefetch` and `analytics`; these are called "stream types"
@@ -36,13 +36,13 @@ Configuration Options
 
 ## Vector IO and Stream Types
 
-All streams support VectorIO to some degree. 
+All streams support VectorIO to some degree.
 
-| Stream | Support |
-|--------|---------|
-|  `classic`      | Parallel issuing of GET request with range coalescing         |
-| `prefetch`  | Sequential reads, using prefetched blocks as appropriate | 
-| `analytics`  | Sequential reads, using prefetched blocks as where possible |
+| Stream      | Support                                                     |
+|-------------|-------------------------------------------------------------|
+| `classic`   | Parallel issuing of GET request with range coalescing       |
+| `prefetch`  | Sequential reads, using prefetched blocks as appropriate    |
+| `analytics` | Sequential reads, using prefetched blocks as where possible |
 
 Because the analytics streams is doing parquet-aware RowGroup prefetch
 
@@ -75,7 +75,7 @@ resources: buffer, connections to remote servers, cached files etc.
 This is used in some query engines, including Apache Impala, to keep
 streams open for rapid re-use, avoiding the overhead of re-opening files.
 
-Only the classic stream supports `CanUnbuffer.unbuffer()`; 
+Only the classic stream supports `CanUnbuffer.unbuffer()`;
 the other streams must be closed rather than kept open for an extended
 period of time.
 

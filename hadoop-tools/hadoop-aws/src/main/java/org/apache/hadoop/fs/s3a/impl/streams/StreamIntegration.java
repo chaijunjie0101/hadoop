@@ -79,7 +79,6 @@ public final class StreamIntegration {
    */
   public static final InputStreamType DEFAULT_STREAM_TYPE = InputStreamType.Classic;
 
-  ;
   /**
    * Configuration deprecation log for warning about use of the
    * now deprecated {@code "fs.s3a.prefetch.enabled"} option..
