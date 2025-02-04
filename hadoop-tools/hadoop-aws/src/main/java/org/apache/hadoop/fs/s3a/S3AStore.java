@@ -338,4 +338,24 @@ public interface S3AStore extends
   File createTemporaryFileForWriting(String pathStr,
       long size,
       Configuration conf) throws IOException;
+
+
+  /**
+   * Return the capabilities of input streams created
+   * through the store.
+   * @param capability string to query the stream support for.
+   * @return capabilities declared supported in streams.
+   */
+  boolean inputStreamHasCapability(String capability);
+
+  /**
+   * The StreamCapabilities is part of ObjectInputStreamFactory.
+   * To avoid confusion with any other streams which may
+   * be added here: always return false.
+   * @param capability string to query the stream support for.
+   * @return false, always.
+   */
+  default boolean hasCapability(String capability) {
+    return false;
+  }
 }

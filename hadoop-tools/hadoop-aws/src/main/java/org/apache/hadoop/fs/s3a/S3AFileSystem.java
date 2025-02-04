@@ -5346,8 +5346,9 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
         return true;
       }
 
-      // ask the store for what input stream capabilities it offers
-      if (getStore() != null && getStore().hasCapability(capability)) {
+      // ask the store for what capabilities it offers
+      // this may include input and output capabilites -and more
+      if (getStore() != null && getStore().hasPathCapability(path, capability)) {
         return true;
       }
 

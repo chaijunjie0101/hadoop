@@ -245,8 +245,6 @@ public class S3AStoreImpl
     finishStreamFactoryInit();
   }
 
-
-
   @Override
   protected void serviceStart() throws Exception {
     super.serviceStart();
@@ -267,7 +265,7 @@ public class S3AStoreImpl
     case StreamCapabilities.IOSTATISTICS:
       return true;
     default:
-      return hasCapability(capability);
+      return inputStreamHasCapability(capability);
     }
   }
 
@@ -278,7 +276,7 @@ public class S3AStoreImpl
    * @return capabilities declared supported in streams.
    */
   @Override
-  public boolean hasCapability(final String capability) {
+  public boolean inputStreamHasCapability(final String capability) {
     if (objectInputStreamFactory != null) {
       return objectInputStreamFactory.hasCapability(capability);
     }
