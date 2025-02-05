@@ -18,7 +18,10 @@
 
 package org.apache.hadoop.fs.s3a.audit;
 
+import org.assertj.core.api.Assumptions;
+
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.s3a.S3AFileSystem;
 import org.apache.hadoop.fs.s3a.S3ATestUtils;
 import org.apache.hadoop.fs.s3a.audit.impl.NoopAuditManagerS3A;
 import org.apache.hadoop.fs.s3a.audit.impl.NoopAuditor;
@@ -122,6 +125,8 @@ public final class AuditTestSupport {
   /**
    * Remove all overridden values for
    * the test bucket/global in the given config.
+   * Note that the rejection flag may be overridden by the
+   * requirements returned by the output stream factory.
    * @param conf configuration to patch
    * @return the configuration.
    */
@@ -133,5 +138,24 @@ public final class AuditTestSupport {
         AUDIT_SERVICE_CLASSNAME,
         AUDIT_ENABLED);
     return conf;
+  }
+
+  /**
+   * Skip a test if the filesystem's audit manager has had them disabled.
+   * @param fs filesystem
+   */
+  public static void requireOutOfSpanOperationsRejected(final S3AFileSystem fs) {
+    Assumptions.assumeThat(outOfSpanOperationAreRejected(fs))
+        .describedAs("Out of span operations rejected")
+        .isTrue();
+  }
+
+  /**
+   * Are Out of Span operations rejected by the filesystem's audit manager?
+   * @param fs filesystem
+   * @return true if out of span calls raise exceptions
+   */
+  private static boolean outOfSpanOperationAreRejected(final S3AFileSystem fs) {
+    return fs.getAuditManager().getConfig().getBoolean(REJECT_OUT_OF_SPAN_OPERATIONS, false);
   }
 }

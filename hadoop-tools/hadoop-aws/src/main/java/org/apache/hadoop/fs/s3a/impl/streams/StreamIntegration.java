@@ -192,6 +192,7 @@ public final class StreamIntegration {
 
   /**
    * Populates the configurations related to vectored IO operations.
+   * The context is still mutable at this point.
    * @param conf configuration object.
    * @return VectoredIOContext.
    */
@@ -206,8 +207,7 @@ public final class StreamIntegration {
     return new VectoredIOContext()
         .setMinSeekForVectoredReads(minSeekVectored)
         .setMaxReadSizeForVectoredReads(maxReadSizeVectored)
-        .setVectoredActiveRangeReads(vectoredActiveRangeReads)
-        .build();
+        .setVectoredActiveRangeReads(vectoredActiveRangeReads);
   }
 
 }

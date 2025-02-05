@@ -21,9 +21,13 @@ package org.apache.hadoop.fs.s3a.impl.streams;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
+import org.assertj.core.api.AbstractBooleanAssert;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.s3a.VectoredIOContext;
 import org.apache.hadoop.fs.s3a.prefetch.PrefetchingInputStreamFactory;
 import org.apache.hadoop.test.AbstractHadoopTestBase;
 
@@ -34,6 +38,8 @@ import static org.apache.hadoop.fs.s3a.Constants.INPUT_STREAM_TYPE_CUSTOM;
 import static org.apache.hadoop.fs.s3a.Constants.INPUT_STREAM_TYPE_DEFAULT;
 import static org.apache.hadoop.fs.s3a.Constants.INPUT_STREAM_TYPE_PREFETCH;
 import static org.apache.hadoop.fs.s3a.Constants.PREFETCH_ENABLED_KEY;
+import static org.apache.hadoop.fs.s3a.impl.streams.StreamFactoryRequirements.Requirements.ExpectUnauditedGetRequests;
+import static org.apache.hadoop.fs.s3a.impl.streams.StreamFactoryRequirements.Requirements.RequiresFuturePool;
 import static org.apache.hadoop.fs.s3a.impl.streams.StreamIntegration.DEFAULT_STREAM_TYPE;
 import static org.apache.hadoop.fs.s3a.impl.streams.StreamIntegration.E_EMPTY_CUSTOM_CLASSNAME;
 import static org.apache.hadoop.fs.s3a.impl.streams.StreamIntegration.E_INVALID_STREAM_TYPE;
@@ -64,8 +70,24 @@ public class TestStreamFactories extends AbstractHadoopTestBase {
    */
   @Test
   public void testClassicFactoryCreation() throws Throwable {
-    load(INPUT_STREAM_TYPE_CLASSIC, DEFAULT_STREAM_TYPE,
-        ClassicObjectInputStreamFactory.class);
+    final ClassicObjectInputStreamFactory f =
+        load(INPUT_STREAM_TYPE_CLASSIC, DEFAULT_STREAM_TYPE,
+            ClassicObjectInputStreamFactory.class);
+    final StreamFactoryRequirements requirements = f.factoryRequirements();
+    Assertions.assertThat(requirements.requiresFuturePool())
+        .describedAs("requires future pool of %s", requirements)
+        .isFalse();
+    expectRequirement(requirements,
+        ExpectUnauditedGetRequests,
+        false);
+  }
+
+  private static AbstractBooleanAssert<?> expectRequirement(final StreamFactoryRequirements requirements,
+      final StreamFactoryRequirements.Requirements r,
+      final boolean expected) {
+    return Assertions.assertThat(requirements.requires(r))
+        .describedAs("%s of %s", r, requirements)
+        .isEqualTo(expected);
   }
 
   /**
@@ -74,9 +96,19 @@ public class TestStreamFactories extends AbstractHadoopTestBase {
   @Test
   public void testPrefetchFactoryCreation() throws Throwable {
     // load from config option
-    load(INPUT_STREAM_TYPE_PREFETCH,
+    final PrefetchingInputStreamFactory f = load(INPUT_STREAM_TYPE_PREFETCH,
         InputStreamType.Prefetch,
         PrefetchingInputStreamFactory.class);
+    final StreamFactoryRequirements requirements = f.factoryRequirements();
+    Assertions.assertThat(requirements.requiresFuturePool())
+        .describedAs("requires future pool of %s", requirements)
+        .isTrue();
+    expectRequirement(requirements,
+        ExpectUnauditedGetRequests,
+        false);    
+    expectRequirement(requirements,
+        RequiresFuturePool,
+        true);
   }
 
   /**
@@ -98,6 +130,51 @@ public class TestStreamFactories extends AbstractHadoopTestBase {
         PrefetchingInputStreamFactory.class);
   }
 
+  @Test
+  public void testRequirementFlagsNoElements() throws Throwable {
+    VectoredIOContext vertex = new VectoredIOContext();
+
+    // no elements
+    final StreamFactoryRequirements r1 =
+        new StreamFactoryRequirements(1, 2, vertex);
+    expectRequirement(r1, ExpectUnauditedGetRequests, false);
+    expectRequirement(r1, RequiresFuturePool, false);
+    Assertions.assertThat(r1.requiresFuturePool())
+        .describedAs("requiresFuturePool() %s", r1)
+        .isFalse();
+    Assertions.assertThat(r1)
+        .describedAs("%s", r1)
+        .matches(r -> !r.requiresFuturePool(), "requiresFuturePool")
+        .satisfies(r ->
+            Assertions.assertThat(r.sharedThreads()).isEqualTo(1))
+        .satisfies(r ->
+            Assertions.assertThat(r.streamThreads()).isEqualTo(2));
+  }
+
+  @Test
+  public void testRequirementFlagsFutures() throws Throwable {
+    VectoredIOContext vertex = new VectoredIOContext();
+
+    final StreamFactoryRequirements r1 =
+        new StreamFactoryRequirements(1, 2, vertex, RequiresFuturePool);
+    expectRequirement(r1, ExpectUnauditedGetRequests, false);
+    expectRequirement(r1, RequiresFuturePool, true);
+    Assertions.assertThat(r1.requiresFuturePool())
+        .describedAs("requiresFuturePool() %s", r1)
+        .isTrue();
+  }
+
+  @Test
+  public void testRequirementFlagsUnaudited() throws Throwable {
+    VectoredIOContext vertex = new VectoredIOContext();
+
+    final StreamFactoryRequirements r1 =
+        new StreamFactoryRequirements(1, 2, vertex, ExpectUnauditedGetRequests);
+    expectRequirement(r1, ExpectUnauditedGetRequests, true);
+    expectRequirement(r1, RequiresFuturePool, false);
+  }
+
+
   /**
    * Create a factory, assert that it satisfies the requirements.
    * @param name name: only used for assertion messages.
@@ -105,12 +182,16 @@ public class TestStreamFactories extends AbstractHadoopTestBase {
    * @param clazz expected class.
    * @param <T> class to expect
    */
-  private static <T extends ObjectInputStreamFactory> void load(
+  private static <T extends ObjectInputStreamFactory> T load(
       String name,
       InputStreamType type,
-      Class<T> clazz) {
+      Class<T> clazz) throws IOException {
 
-    assertFactorySatisfies(factory(name), name, type, clazz);
+    final ObjectInputStreamFactory factory = factory(name);
+    assertFactorySatisfies(factory, name, type, clazz);
+    factory.init(new Configuration(false));
+    factory.bind(new FactoryBindingParameters(new Callbacks()));
+    return (T)factory;
   }
 
   /**
@@ -237,4 +318,16 @@ public class TestStreamFactories extends AbstractHadoopTestBase {
     }
 
   }
+
+  /**
+   * Callbacks from {@link ObjectInputStreamFactory} instances.
+   */
+  private static final class Callbacks implements ObjectInputStreamFactory.StreamFactoryCallbacks {
+
+    @Override
+    public S3AsyncClient getOrCreateAsyncClient(final boolean requireCRT) throws IOException {
+      throw new UnsupportedOperationException("not implemented");
+    }
+  }
+
 }

@@ -54,6 +54,7 @@ import org.apache.hadoop.fs.s3a.impl.ClientManager;
 import org.apache.hadoop.fs.s3a.impl.MultiObjectDeleteException;
 import org.apache.hadoop.fs.s3a.impl.S3AFileSystemOperations;
 import org.apache.hadoop.fs.s3a.impl.StoreContext;
+import org.apache.hadoop.fs.s3a.impl.streams.InputStreamType;
 import org.apache.hadoop.fs.s3a.impl.streams.ObjectInputStreamFactory;
 import org.apache.hadoop.fs.s3a.statistics.S3AStatisticsContext;
 import org.apache.hadoop.fs.statistics.DurationTrackerFactory;
@@ -340,6 +341,10 @@ public interface S3AStore extends
       Configuration conf) throws IOException;
 
 
+  /*
+   =============== BEGIN ObjectInputStreamFactory ===============
+   */
+
   /**
    * Return the capabilities of input streams created
    * through the store.
@@ -358,4 +363,8 @@ public interface S3AStore extends
   default boolean hasCapability(String capability) {
     return false;
   }
+
+  /*
+   =============== END ObjectInputStreamFactory ===============
+   */
 }

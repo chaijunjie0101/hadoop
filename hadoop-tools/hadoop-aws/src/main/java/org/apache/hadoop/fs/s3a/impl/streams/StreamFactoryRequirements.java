@@ -53,7 +53,7 @@ public class StreamFactoryRequirements {
    * Create the thread options.
    * @param sharedThreads Number of shared threads to included in the bounded pool.
    * @param streamThreads How many threads per stream, ignoring vector IO requirements.
-   * @param vectoredIOContext vector IO settings.
+   * @param vectoredIOContext vector IO settings -made immutable if not already done.
    * @param requirements requirement flags of the factory and stream.
    */
   public StreamFactoryRequirements(
@@ -64,7 +64,11 @@ public class StreamFactoryRequirements {
     this.sharedThreads = sharedThreads;
     this.streamThreads = streamThreads;
     this.vectoredIOContext = vectoredIOContext.build();
-    this.requirementFlags = EnumSet.copyOf((Arrays.asList(requirements)));
+    if (requirements.length == 0) {
+      this.requirementFlags = EnumSet.noneOf(Requirements.class);
+    } else {
+      this.requirementFlags = EnumSet.copyOf((Arrays.asList(requirements)));
+    }
   }
 
   /**
@@ -106,22 +110,32 @@ public class StreamFactoryRequirements {
     return requirementFlags.contains(r);
   }
 
+  @Override
+  public String toString() {
+    return "StreamFactoryRequirements{" +
+        "sharedThreads=" + sharedThreads +
+        ", streamThreads=" + streamThreads +
+        ", requirementFlags=" + requirementFlags +
+        ", vectoredIOContext=" + vectoredIOContext +
+        '}';
+  }
+
   /**
    * An enum of options.
    */
   public enum Requirements {
 
     /**
-     * Requires a future pool bound to the thread pool.
-     */
-    RequiresFuturePool,
-
-    /**
      * Expect Unaudited GETs.
      * Disables auditor warning/errors about GET requests being
      * issued outside an audit span.
      */
-    ExpectUnauditedGetRequests
+    ExpectUnauditedGetRequests,
+
+    /**
+     * Requires a future pool bound to the thread pool.
+     */
+    RequiresFuturePool
 
   }
 }

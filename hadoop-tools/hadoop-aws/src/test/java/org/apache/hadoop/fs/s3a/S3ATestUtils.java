@@ -45,6 +45,7 @@ import org.apache.hadoop.fs.s3a.impl.S3ExpressStorage;
 import org.apache.hadoop.fs.s3a.impl.StatusProbeEnum;
 import org.apache.hadoop.fs.s3a.impl.StoreContext;
 import org.apache.hadoop.fs.s3a.impl.StoreContextBuilder;
+import org.apache.hadoop.fs.s3a.impl.streams.InputStreamType;
 import org.apache.hadoop.fs.s3a.prefetch.S3APrefetchingInputStream;
 import org.apache.hadoop.fs.s3a.statistics.BlockOutputStreamStatistics;
 import org.apache.hadoop.fs.s3a.statistics.S3AInputStreamStatistics;
@@ -120,6 +121,7 @@ import static org.apache.hadoop.fs.s3a.S3ATestConstants.*;
 import static org.apache.hadoop.fs.s3a.Constants.*;
 import static org.apache.hadoop.fs.s3a.S3AUtils.buildEncryptionSecrets;
 import static org.apache.hadoop.test.LambdaTestUtils.intercept;
+import static org.apache.hadoop.util.functional.FunctionalIO.uncheckIOExceptions;
 import static org.apache.hadoop.util.functional.RemoteIterators.mappingRemoteIterator;
 import static org.apache.hadoop.util.functional.RemoteIterators.toList;
 import static org.junit.Assert.*;
@@ -724,10 +726,8 @@ public final class S3ATestUtils {
     }
     conf.set(BUFFER_DIR, tmpDir);
 
-    boolean prefetchEnabled =
-        getTestPropertyBool(conf, PREFETCH_ENABLED_KEY, PREFETCH_ENABLED_DEFAULT);
-    conf.setBoolean(PREFETCH_ENABLED_KEY, prefetchEnabled);
-
+    conf.set(INPUT_STREAM_TYPE,
+        getTestProperty(conf, INPUT_STREAM_TYPE, INPUT_STREAM_TYPE_DEFAULT));
     return conf;
   }
 
@@ -1806,14 +1806,26 @@ public final class S3ATestUtils {
   }
 
   /**
-   * Probe the configuration for supporting prefetching.
-   * @return true if the config has prefetching enabled.
+   * Probe for a filesystem having a specific stream type;
+   * this is done through filesystem capabilities.
+   * @param fs filesystem
+   * @param type stream type
+   * @return true if the fs has the specific type.
    */
-  public static boolean isPrefetchingEnabled(Configuration conf) {
-    return conf.getBoolean(PREFETCH_ENABLED_KEY, PREFETCH_ENABLED_DEFAULT)
-        || conf.getEnum(INPUT_STREAM_TYPE, DEFAULT_STREAM_TYPE) == Prefetch;
+  public static boolean hasInputStreamType(FileSystem fs, InputStreamType type) {
+    return uncheckIOExceptions(() ->
+        fs.hasPathCapability(new Path("/"),
+            type.capability()));
   }
 
+  /**
+   * What is the stream type of this filesystem?
+   * @param fs filesystem to probe
+   * @return the stream type
+   */
+  public static InputStreamType streamType(S3AFileSystem fs) {
+    return fs.getS3AInternals().getStore().streamType();
+  }
   /**
    * Skip root tests if the system properties/config says so.
    * @param conf configuration to check

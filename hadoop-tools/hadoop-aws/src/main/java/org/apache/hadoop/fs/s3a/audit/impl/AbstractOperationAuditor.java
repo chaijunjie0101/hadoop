@@ -18,9 +18,12 @@
 
 package org.apache.hadoop.fs.s3a.audit.impl;
 
+import java.util.EnumSet;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.hadoop.fs.s3a.audit.AuditorFlags;
 import org.apache.hadoop.fs.s3a.audit.OperationAuditor;
 import org.apache.hadoop.fs.s3a.audit.OperationAuditorOptions;
 import org.apache.hadoop.fs.statistics.impl.IOStatisticsStore;
@@ -59,6 +62,11 @@ public abstract class AbstractOperationAuditor extends AbstractService
    * Options: set in {@link #init(OperationAuditorOptions)}.
    */
   private OperationAuditorOptions options;
+
+  /**
+   * Should out of span requests be rejected?
+   */
+  private AtomicBoolean rejectOutOfSpan = new AtomicBoolean(false);
 
   /**
    * Auditor ID as a UUID.
@@ -119,5 +127,10 @@ public abstract class AbstractOperationAuditor extends AbstractService
   protected final String createSpanID() {
     return String.format("%s-%08d",
         auditorID, SPAN_ID_COUNTER.incrementAndGet());
+  }
+
+  @Override
+  public void setAuditFlags(final EnumSet<AuditorFlags> flags) {
+    /* no-op */
   }
 }

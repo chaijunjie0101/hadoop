@@ -21,6 +21,7 @@ package org.apache.hadoop.fs.s3a.audit.impl;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -46,6 +47,7 @@ import org.apache.hadoop.fs.s3a.audit.AWSRequestAnalyzer;
 import org.apache.hadoop.fs.s3a.audit.AuditFailureException;
 import org.apache.hadoop.fs.s3a.audit.AuditOperationRejectedException;
 import org.apache.hadoop.fs.s3a.audit.AuditSpanS3A;
+import org.apache.hadoop.fs.s3a.audit.AuditorFlags;
 import org.apache.hadoop.fs.store.LogExactlyOnce;
 import org.apache.hadoop.fs.store.audit.HttpReferrerAuditHeader;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -213,6 +215,15 @@ public class LoggingAuditor
         path2);
     span.start();
     return span;
+  }
+
+  @Override
+  public void setAuditFlags(final EnumSet<AuditorFlags> flags) {
+    // if out of band operations are allowed, configuration settings are overridden
+    if (flags.contains(AuditorFlags.PermitOutOfBandOperations)) {
+      LOG.debug("Out of span operations are required by the stream factory");
+      rejectOutOfSpan = false;
+    }
   }
 
   /**

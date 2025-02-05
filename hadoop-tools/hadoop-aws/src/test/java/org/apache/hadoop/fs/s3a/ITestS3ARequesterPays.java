@@ -32,7 +32,7 @@ import org.apache.hadoop.fs.statistics.StreamStatisticNames;
 
 import static org.apache.hadoop.fs.s3a.Constants.ALLOW_REQUESTER_PAYS;
 import static org.apache.hadoop.fs.s3a.Constants.S3A_BUCKET_PROBE;
-import static org.apache.hadoop.fs.s3a.S3ATestUtils.isPrefetchingEnabled;
+import static org.apache.hadoop.fs.s3a.S3ATestUtils.streamType;
 import static org.apache.hadoop.test.LambdaTestUtils.intercept;
 
 /**
@@ -79,15 +79,20 @@ public class ITestS3ARequesterPays extends AbstractS3ATestBase {
       inputStream.seek(0);
       inputStream.readByte();
 
-      if (isPrefetchingEnabled(conf)) {
-        // For S3APrefetchingInputStream, verify a call was made
-        IOStatisticAssertions.assertThatStatisticCounter(inputStream.getIOStatistics(),
-            StreamStatisticNames.STREAM_READ_OPENED).isEqualTo(1);
-      } else {
+      switch (streamType(getFileSystem())) {
+      case Classic:
         // For S3AInputStream, verify > 1 call was made,
         // so we're sure it is correctly configured for each request
         IOStatisticAssertions.assertThatStatisticCounter(inputStream.getIOStatistics(),
             StreamStatisticNames.STREAM_READ_OPENED).isGreaterThan(1);
+        break;
+      case Prefetch:
+        // For S3APrefetchingInputStream, verify a call was made
+        IOStatisticAssertions.assertThatStatisticCounter(inputStream.getIOStatistics(),
+            StreamStatisticNames.STREAM_READ_OPENED).isEqualTo(1);
+        break;
+      default:
+        break;
       }
 
       // Check list calls work without error

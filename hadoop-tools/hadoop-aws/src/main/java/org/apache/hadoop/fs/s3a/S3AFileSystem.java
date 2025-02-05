@@ -106,6 +106,7 @@ import org.apache.hadoop.fs.impl.OpenFileParameters;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.s3a.api.PerformanceFlagEnum;
 import org.apache.hadoop.fs.s3a.audit.AuditSpanS3A;
+import org.apache.hadoop.fs.s3a.audit.AuditorFlags;
 import org.apache.hadoop.fs.s3a.auth.SignerManager;
 import org.apache.hadoop.fs.s3a.auth.delegation.DelegationOperations;
 import org.apache.hadoop.fs.s3a.auth.delegation.DelegationTokenProvider;
@@ -230,7 +231,6 @@ import static org.apache.hadoop.fs.s3a.Listing.toLocatedFileStatusIterator;
 import static org.apache.hadoop.fs.s3a.S3AUtils.*;
 import static org.apache.hadoop.fs.s3a.Statistic.*;
 import static org.apache.hadoop.fs.s3a.audit.S3AAuditConstants.INITIALIZE_SPAN;
-import static org.apache.hadoop.fs.s3a.audit.S3AAuditConstants.REJECT_OUT_OF_SPAN_OPERATIONS;
 import static org.apache.hadoop.fs.s3a.auth.CredentialProviderListFactory.createAWSCredentialProviderList;
 import static org.apache.hadoop.fs.s3a.auth.RolePolicies.STATEMENT_ALLOW_KMS_RW;
 import static org.apache.hadoop.fs.s3a.auth.RolePolicies.allowS3Operations;
@@ -333,6 +333,8 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
 
   /**
    * Future pool built on the bounded thread pool.
+   * S3 reads are prefetched asynchronously using this future pool if the
+   * Stream Factory requests it.
    */
   private ExecutorServiceFuturePool futurePool;
 
@@ -529,7 +531,7 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
    * This is called after a new FileSystem instance is constructed -but
    * within the filesystem cache creation process.
    * A slow start here while multiple threads are calling
-   * {@link FileSystem#get(Path, Configuration)} will result in multiple
+   *  will result in multiple
    * instances of the filesystem being created -and all but one deleted.
    * <i>Keep this as fast as possible, and avoid network IO</i>.
    * <p>
@@ -681,10 +683,6 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
       signerManager = new SignerManager(bucket, this, conf, owner);
       signerManager.initCustomSigners();
 
-      // create the requestFactory.
-      // requires the audit manager to be initialized.
-      requestFactory = createRequestFactory();
-
       // create an initial span for all other operations.
       span = createSpan(INITIALIZE_SPAN, bucket, null);
 
@@ -771,6 +769,15 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
       s3AccessGrantsEnabled = conf.getBoolean(AWS_S3_ACCESS_GRANTS_ENABLED, false);
 
       int rateLimitCapacity = intOption(conf, S3A_IO_RATE_LIMIT, DEFAULT_S3A_IO_RATE_LIMIT, 0);
+
+      // start auditing.
+      // extra configuration will be passed down later.
+      initializeAuditService();
+
+      // create the requestFactory.
+      // requires the audit manager to be initialized.
+      requestFactory = createRequestFactory();
+
       // now create and initialize the store
       store = createS3AStore(clientManager, rateLimitCapacity);
       // the s3 client is created through the store, rather than
@@ -781,14 +788,17 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
       // get the input stream factory requirements.
       final StreamFactoryRequirements factoryRequirements =
           getStore().factoryRequirements();
-      // get the vector IO context from the factory.
-      vectoredIOContext = factoryRequirements.vectoredIOContext();
 
-      // start auditing.
       // If the input stream can issue get requests outside spans,
       // the auditor is forced to disable rejection of unaudited requests.
-      initializeAuditService(factoryRequirements.requires(
-          StreamFactoryRequirements.Requirements.ExpectUnauditedGetRequests));
+      final EnumSet<AuditorFlags> flags = EnumSet.noneOf(AuditorFlags.class);
+      if (factoryRequirements.requires(
+          StreamFactoryRequirements.Requirements.ExpectUnauditedGetRequests)) {
+        flags.add(AuditorFlags.PermitOutOfBandOperations);
+      }
+      getAuditManager().setAuditFlags(flags);
+      // get the vector IO context from the factory.o
+      vectoredIOContext = factoryRequirements.vectoredIOContext();
 
       // thread pool init requires store to be created and
       // the stream factory requirements to include its own requirements.
@@ -934,9 +944,7 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
    * @param conf configuration.
    */
   private void initThreadPools() {
-
     Configuration conf = getConf();
-
     final String name = "s3a-transfer-" + getBucket();
     int maxThreads = conf.getInt(MAX_THREADS, DEFAULT_MAX_THREADS);
     if (maxThreads < 2) {
@@ -1177,17 +1185,11 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
    * Initialize and launch the audit manager and service.
    * As this takes the FS IOStatistics store, it must be invoked
    * after instrumentation is initialized.
-   * @param allowUnauditedRequests are unaudited requests required.
    * @throws IOException failure to instantiate/initialize.
    */
-  protected void initializeAuditService(boolean allowUnauditedRequests) throws IOException {
-    final Configuration conf = new Configuration(getConf());
-    if (allowUnauditedRequests) {
-      // unaudited requests must be allowed
-      conf.setBoolean(REJECT_OUT_OF_SPAN_OPERATIONS, false);
-    }
+  protected void initializeAuditService() throws IOException {
     auditManager = AuditIntegration.createAndStartAuditManager(
-        conf,
+        getConf(),
         instrumentation.createMetricsUpdatingStore());
   }
 
@@ -1329,7 +1331,6 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
   public FlagSet<PerformanceFlagEnum> getPerformanceFlags() {
     return performanceFlags;
   }
-
 
   /**
    * Get the store for low-level operations.
@@ -1895,7 +1896,7 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
 
   /**
    * Override point: create the callbacks for ObjectInputStream.
-   * @return an implementation of callbacks,
+   * @return an implementation of ObjectInputStreamCallbacks.
    */
   private ObjectInputStreamCallbacks createInputStreamCallbacks(
       final AuditSpan auditSpan) {
@@ -1947,8 +1948,7 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
         fileStatus,
         vectoredIOContext,
         IOStatisticsContext.getCurrentIOStatisticsContext().getAggregator(),
-        futurePool
-    )
+        futurePool)
         .withAuditSpan(auditSpan);
     openFileHelper.applyDefaultOptions(roc);
     return roc.build();
@@ -4302,7 +4302,6 @@ public class S3AFileSystem extends FileSystem implements StreamCapabilities,
         HadoopExecutors.shutdown(unboundedThreadPool, LOG,
             THREAD_POOL_SHUTDOWN_DELAY_SECONDS, TimeUnit.SECONDS);
         unboundedThreadPool = null;
-
         // other services are shutdown.
         cleanupWithLogger(LOG,
             delegationTokens.orElse(null),

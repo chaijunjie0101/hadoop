@@ -32,6 +32,7 @@ import org.apache.hadoop.fs.statistics.IOStatistics;
 import static org.apache.hadoop.fs.s3a.Statistic.AUDIT_FAILURE;
 import static org.apache.hadoop.fs.s3a.Statistic.AUDIT_REQUEST_EXECUTION;
 import static org.apache.hadoop.fs.s3a.audit.AuditTestSupport.enableLoggingAuditor;
+import static org.apache.hadoop.fs.s3a.audit.AuditTestSupport.requireOutOfSpanOperationsRejected;
 import static org.apache.hadoop.fs.s3a.audit.AuditTestSupport.resetAuditOptions;
 import static org.apache.hadoop.fs.s3a.audit.S3AAuditConstants.AUDIT_EXECUTION_INTERCEPTORS;
 import static org.apache.hadoop.fs.s3a.audit.S3AAuditConstants.AUDIT_REQUEST_HANDLERS;
@@ -78,6 +79,9 @@ public class ITestAuditManager extends AbstractS3ACostTest {
   public void testInvokeOutOfSpanRejected() throws Throwable {
     describe("Operations against S3 will be rejected outside of a span");
     final S3AFileSystem fs = getFileSystem();
+
+    requireOutOfSpanOperationsRejected(fs);
+
     final long failures0 = lookupCounterStatistic(iostats(),
         AUDIT_FAILURE.getSymbol());
     final long exec0 = lookupCounterStatistic(iostats(),

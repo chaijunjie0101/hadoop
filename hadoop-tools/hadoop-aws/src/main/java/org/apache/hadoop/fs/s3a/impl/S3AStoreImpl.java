@@ -220,9 +220,9 @@ public class S3AStoreImpl
     this.writeRateLimiter = requireNonNull(writeRateLimiter);
     this.storeContext = requireNonNull(storeContextFactory.createStoreContext());
 
-    this.invoker = storeContext.getInvoker();
-    this.bucket = storeContext.getBucket();
-    this.requestFactory = storeContext.getRequestFactory();
+    this.invoker = requireNonNull(storeContext.getInvoker());
+    this.bucket = requireNonNull(storeContext.getBucket());
+    this.requestFactory = requireNonNull(storeContext.getRequestFactory());
     addService(clientManager);
   }
 
