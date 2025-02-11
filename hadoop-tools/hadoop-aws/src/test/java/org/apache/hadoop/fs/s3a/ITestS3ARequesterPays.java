@@ -33,6 +33,7 @@ import org.apache.hadoop.fs.statistics.StreamStatisticNames;
 import static org.apache.hadoop.fs.s3a.Constants.ALLOW_REQUESTER_PAYS;
 import static org.apache.hadoop.fs.s3a.Constants.S3A_BUCKET_PROBE;
 import static org.apache.hadoop.fs.s3a.S3ATestUtils.streamType;
+import static org.apache.hadoop.fs.s3a.S3ATestUtils.skipIfAnalyticsAcceleratorEnabled;
 import static org.apache.hadoop.test.LambdaTestUtils.intercept;
 
 /**
@@ -59,6 +60,11 @@ public class ITestS3ARequesterPays extends AbstractS3ATestBase {
   public void testRequesterPaysOptionSuccess() throws Throwable {
     describe("Test requester pays enabled case by reading last then first byte");
     skipIfClientSideEncryption();
+    // Analytics accelerator currently does not support IOStatistics which leads to the
+    // STREAM_READ_OPENED assertion to fail, this will be added as part of
+    // https://issues.apache.org/jira/browse/HADOOP-19364
+    skipIfAnalyticsAcceleratorEnabled(getConfiguration(),
+        "Analytics Accelerator currently does not support IOStatistics");
     Configuration conf = this.createConfiguration();
     conf.setBoolean(ALLOW_REQUESTER_PAYS, true);
     // Enable bucket exists check, the first failure point people may encounter
