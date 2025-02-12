@@ -21,42 +21,34 @@ package org.apache.hadoop.fs.s3a;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.util.UUID;
+import java.io.InputStream;
 
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.PathHandle;
-import org.apache.hadoop.fs.s3a.impl.AwsSdkWorkarounds;
+import org.apache.hadoop.fs.s3a.impl.streams.InputStreamType;
+import org.apache.hadoop.fs.s3a.impl.streams.ObjectInputStream;
 import org.apache.hadoop.fs.statistics.IOStatistics;
-import org.apache.hadoop.test.GenericTestUtils;
 
-import static org.apache.commons.io.FileUtils.ONE_KB;
 import static org.apache.hadoop.fs.s3a.Constants.*;
 import static org.apache.hadoop.fs.s3a.S3ATestUtils.enableAnalyticsAccelerator;
-import static org.apache.hadoop.fs.s3a.S3ATestUtils.enablePrefetching;
 import static org.apache.hadoop.fs.s3a.S3ATestUtils.removeBaseAndBucketOverrides;
 import static org.apache.hadoop.fs.s3a.test.PublicDatasetTestUtils.getExternalData;
 import static org.apache.hadoop.fs.s3a.test.PublicDatasetTestUtils.isUsingDefaultExternalDataFile;
 import static org.apache.hadoop.fs.statistics.IOStatisticAssertions.verifyStatisticCounterValue;
 import static org.apache.hadoop.fs.statistics.StreamStatisticNames.STREAM_READ_ANALYTICS_OPENED;
-import static org.apache.hadoop.fs.statistics.StreamStatisticNames.STREAM_READ_OPENED;
-import static org.apache.hadoop.fs.statistics.StreamStatisticNames.STREAM_READ_PREFETCH_OPERATIONS;
-import static org.apache.hadoop.test.GenericTestUtils.LogCapturer.captureLogs;
+
 
 import org.assertj.core.api.Assertions;
 
-import org.slf4j.LoggerFactory;
+
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamConfiguration;
 import software.amazon.s3.analyticsaccelerator.common.ConnectorConfiguration;
-import software.amazon.s3.analyticsaccelerator.io.logical.parquet.ParquetMetadataParsingTask;
 import software.amazon.s3.analyticsaccelerator.util.PrefetchMode;
 
 public class ITestS3AAnalyticsAcceleratorStream extends AbstractS3ATestBase {
@@ -90,6 +82,9 @@ public class ITestS3AAnalyticsAcceleratorStream extends AbstractS3ATestBase {
   public void testConnectorFrameWorkIntegration() throws IOException {
     describe("Verify S3 connector framework integration");
 
+    removeBaseAndBucketOverrides(conf, INPUT_FADVISE);
+    conf.set(INPUT_FADVISE, "whole-file");
+
     S3AFileSystem fs =
         (S3AFileSystem) FileSystem.get(testFile.toUri(), conf);
     byte[] buffer = new byte[500];
@@ -99,7 +94,13 @@ public class ITestS3AAnalyticsAcceleratorStream extends AbstractS3ATestBase {
       ioStats = inputStream.getIOStatistics();
       inputStream.seek(5);
       inputStream.read(buffer, 0, 500);
+
+      final InputStream wrappedStream = inputStream.getWrappedStream();
+      ObjectInputStream objectInputStream = (ObjectInputStream) wrappedStream;
+      assertEquals(objectInputStream.streamType(), InputStreamType.Analytics);
+      assertEquals(objectInputStream.getInputPolicy(), S3AInputPolicy.Sequential);
     }
+
     verifyStatisticCounterValue(ioStats, STREAM_READ_ANALYTICS_OPENED, 1);
   }
 

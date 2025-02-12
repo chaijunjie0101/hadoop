@@ -25,12 +25,16 @@ import java.io.IOException;
 import org.apache.hadoop.fs.FSExceptionMessages;
 import org.apache.hadoop.fs.StreamCapabilities;
 import org.apache.hadoop.fs.s3a.Retries;
+import org.apache.hadoop.fs.s3a.S3AInputPolicy;
 import org.apache.hadoop.fs.s3a.S3ObjectAttributes;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStream;
+import software.amazon.s3.analyticsaccelerator.request.ObjectMetadata;
+import software.amazon.s3.analyticsaccelerator.util.InputPolicy;
+import software.amazon.s3.analyticsaccelerator.util.OpenFileInformation;
 import software.amazon.s3.analyticsaccelerator.util.S3URI;
 
 /**
@@ -49,7 +53,7 @@ public class AnalyticsStream extends ObjectInputStream implements StreamCapabili
   public AnalyticsStream(final ObjectReadParameters parameters, final S3SeekableInputStreamFactory s3SeekableInputStreamFactory) throws IOException {
     super(InputStreamType.Analytics, parameters);
     S3ObjectAttributes s3Attributes = parameters.getObjectAttributes();
-    this.inputStream = s3SeekableInputStreamFactory.createStream(S3URI.of(s3Attributes.getBucket(), s3Attributes.getKey()));
+    this.inputStream = s3SeekableInputStreamFactory.createStream(S3URI.of(s3Attributes.getBucket(), s3Attributes.getKey()), buildOpenFileInformation(parameters));
     getS3AStreamStatistics().streamOpened(InputStreamType.Analytics);
   }
 
@@ -197,6 +201,38 @@ public class AnalyticsStream extends ObjectInputStream implements StreamCapabili
     this.close();
   }
 
+  private OpenFileInformation buildOpenFileInformation(ObjectReadParameters parameters) {
+    OpenFileInformation openFileInformation = OpenFileInformation.builder().inputPolicy(mapS3AInputPolicyToAAL(parameters.getContext()
+        .getInputPolicy()))
+        .objectMetadata(ObjectMetadata.builder()
+            .contentLength(parameters.getObjectAttributes().getLen())
+            .etag(parameters.getObjectAttributes().getETag()).build())
+        .build();
+
+    return openFileInformation;
+  }
+
+  /**
+   * If S3A's input policy is Sequential, that is, if the file format to be read is sequential
+   * (CSV, JSON), or the file policy passed down is WHOLE_FILE, then AAL's parquet specific
+   * optimisations will be turned off, regardless of the file extension. This is to allow for
+   * applications like DISTCP that read parquet files, but will read them whole, and so do not
+   * follow the typical parquet read patterns of reading footer first etc. and will not benefit
+   * from parquet optimisations.
+   * Else, AAL will make a decision on which optimisations based on the file extension,
+   * if the file ends in .par or .parquet, then parquet specific optimisations are used.
+   *
+   * @param inputPolicy S3A's input file policy passed down when opening the file
+   * @return the AAL read policy
+   */
+  private InputPolicy mapS3AInputPolicyToAAL(S3AInputPolicy inputPolicy) {
+    switch (inputPolicy) {
+     case Sequential:
+       return InputPolicy.Sequential;
+     default:
+       return InputPolicy.None;
+    }
+  }
 
   protected void throwIfClosed() throws IOException {
     if (closed) {
