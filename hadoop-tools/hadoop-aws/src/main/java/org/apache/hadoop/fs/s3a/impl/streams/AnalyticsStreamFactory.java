@@ -21,7 +21,11 @@ package org.apache.hadoop.fs.s3a.impl.streams;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.s3a.VectoredIOContext;
+import org.apache.hadoop.util.functional.CallableRaisingIOE;
+import org.apache.hadoop.util.functional.LazyAutoCloseableReference;
 
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.s3.analyticsaccelerator.S3SdkObjectClient;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamConfiguration;
 import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamFactory;
@@ -39,7 +43,7 @@ import static org.apache.hadoop.fs.s3a.impl.streams.StreamIntegration.populateVe
 public class AnalyticsStreamFactory extends AbstractObjectInputStreamFactory {
 
     private S3SeekableInputStreamConfiguration seekableInputStreamConfiguration;
-    private S3SeekableInputStreamFactory s3SeekableInputStreamFactory;
+    private LazyAutoCloseableReference<S3SeekableInputStreamFactory>  s3SeekableInputStreamFactory;
     private boolean requireCrt;
 
     public AnalyticsStreamFactory() {
@@ -59,20 +63,17 @@ public class AnalyticsStreamFactory extends AbstractObjectInputStreamFactory {
     @Override
     public void bind(final FactoryBindingParameters factoryBindingParameters) throws IOException {
         super.bind(factoryBindingParameters);
-        this.s3SeekableInputStreamFactory = new S3SeekableInputStreamFactory(
-                new S3SdkObjectClient(callbacks().getOrCreateAsyncClient(requireCrt)),
-                seekableInputStreamConfiguration);
+        this.s3SeekableInputStreamFactory = new LazyAutoCloseableReference<>(createS3SeekableInputStreamFactory());
+
     }
 
     @Override
     public ObjectInputStream readObject(final ObjectReadParameters parameters) throws IOException {
         return new AnalyticsStream(
                 parameters,
-                s3SeekableInputStreamFactory);
+                getOrCreateS3SeekableInputStreamFactory());
     }
-
-
-
+    
     @Override
     public InputStreamType streamType() {
         return InputStreamType.Analytics;
@@ -95,5 +96,15 @@ public class AnalyticsStreamFactory extends AbstractObjectInputStreamFactory {
             0, vectorContext);
     }
 
+    private S3SeekableInputStreamFactory getOrCreateS3SeekableInputStreamFactory()
+        throws IOException {
+       return s3SeekableInputStreamFactory.eval();
+    }
+
+    private CallableRaisingIOE<S3SeekableInputStreamFactory> createS3SeekableInputStreamFactory() {
+        return () -> new S3SeekableInputStreamFactory(
+            new S3SdkObjectClient(callbacks().getOrCreateAsyncClient(requireCrt)),
+            seekableInputStreamConfiguration);
+    }
 
 }
