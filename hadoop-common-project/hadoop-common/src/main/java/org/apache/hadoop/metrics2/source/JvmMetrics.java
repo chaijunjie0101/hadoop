@@ -181,16 +181,21 @@ public class JvmMetrics implements MetricsSource {
     long count = 0;
     long timeMillis = 0;
     for (GarbageCollectorMXBean gcBean : gcBeans) {
-      if (gcBean.getName() != null) {
-        String name = gcBean.getName();
+      String gcBeanName = gcBean.getName();
+      if (gcBeanName == null || gcBeanName.startsWith("ZGC") && gcBeanName.endsWith("Cycles")) {
         // JDK-8265136 Skip concurrent phase
-        if (name.startsWith("ZGC") && name.endsWith("Cycles")) {
-          continue;
-        }
+        continue;
       }
       long c = gcBean.getCollectionCount();
       long t = gcBean.getCollectionTime();
-      MetricsInfo[] gcInfo = getGcInfo(gcBean.getName());
+      if (gcBeanName.startsWith("ZGC")) {
+        if (gcBeanName.contains("Minor")) {
+          rb.addCounter(MinorGcCount, c).addCounter(MinorGcTimeMillis, t);
+        } else {
+          rb.addCounter(MajorGcCount, c).addCounter(MajorGcTimeMillis, t);
+        }
+      }
+      MetricsInfo[] gcInfo = getGcInfo(gcBeanName);
       rb.addCounter(gcInfo[0], c).addCounter(gcInfo[1], t);
       count += c;
       timeMillis += t;
